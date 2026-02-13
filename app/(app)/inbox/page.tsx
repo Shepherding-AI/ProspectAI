@@ -2,10 +2,16 @@ import { Nav } from "../_components/Nav";
 
 async function fetchInbox() {
   const token = process.env.WORKSPACE_TOKEN ?? "ws_demo";
-  const res = await fetch(`${process.env.NEXT_PUBLIC_BASE_URL ?? "http://localhost:3000"}/api/inbox`, {
+
+  const res = await fetch("/api/inbox", {
     headers: { "x-workspace-token": token },
     cache: "no-store",
   });
+
+  if (!res.ok) {
+    throw new Error(`Inbox API failed: ${res.status}`);
+  }
+
   return res.json();
 }
 
