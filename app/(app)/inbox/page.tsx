@@ -1,23 +1,21 @@
+export const dynamic = "force-dynamic";
+
 import { Nav } from "../_components/Nav";
-
-async function fetchInbox() {
-  const token = process.env.WORKSPACE_TOKEN ?? "ws_demo";
-
-  const res = await fetch("/api/inbox", {
-    headers: { "x-workspace-token": token },
-    cache: "no-store",
-  });
-
-  if (!res.ok) {
-    throw new Error(`Inbox API failed: ${res.status}`);
-  }
-
-  return res.json();
-}
+import { prisma } from "@/lib/db";
 
 export default async function InboxPage() {
-  const data = await fetchInbox();
-  const accounts = data?.accounts ?? [];
+  // NOTE: V1 uses a single workspace demo. For true multi-tenant, scope by workspaceId from auth.
+  // For now, we pull the most recent accounts (you can add workspace scoping next).
+  const accounts = await prisma.account.findMany({
+    take: 50,
+    orderBy: [{ updatedAt: "desc" }],
+    include: {
+      signals: {
+        orderBy: { createdAt: "desc" },
+        take: 1,
+      },
+    },
+  });
 
   return (
     <div className="container">
@@ -51,13 +49,18 @@ export default async function InboxPage() {
                 <tr key={a.id}>
                   <td>
                     <div style={{ fontWeight: 700 }}>{a.name}</div>
-                    <div className="small">{[a.city, a.state, a.zip].filter(Boolean).join(", ")}</div>
+                    <div className="small">
+                      {[a.city, a.state, a.zip].filter(Boolean).join(", ")}
+                    </div>
                   </td>
                   <td>
                     <span className="pill">{a.fitScore ?? "—"}</span>
                   </td>
                   <td className="muted" style={{ maxWidth: 420 }}>
-                    {a.aiWhyNow ? a.aiWhyNow.slice(0, 120) + (a.aiWhyNow.length > 120 ? "…" : "") : "—"}
+                    {a.aiWhyNow
+                      ? a.aiWhyNow.slice(0, 120) +
+                        (a.aiWhyNow.length > 120 ? "…" : "")
+                      : "—"}
                   </td>
                   <td className="small">
                     {a.signals?.[0]?.source ?? "—"}
@@ -68,24 +71,24 @@ export default async function InboxPage() {
           </table>
 
           <p className="small" style={{ marginTop: 12 }}>
-            Tip: run <code>npm run scheduler:once</code> and <code>npm run worker</code> to populate intel.
+            Tip: run <code>npm run scheduler:once</code> and{" "}
+            <code>npm run worker</code> to populate intel.
           </p>
         </div>
 
         <div className="card">
-          <h2 className="h1" style={{ fontSize: 18 }}>How auth works (V1)</h2>
+          <h2 className="h1" style={{ fontSize: 18 }}>
+            Next upgrade (multi-tenant ready)
+          </h2>
           <p className="muted">
-            For production, wire NextAuth/SSO. This V1 “pro” repo uses a Workspace Token header so you can deploy
-            quickly and lock down APIs immediately.
+            Right now this page shows accounts across the database. Next step is
+            scoping by <code>workspaceId</code> based on auth (Clerk/NextAuth)
+            or the current token gate.
           </p>
-          <div className="row" style={{ marginTop: 10 }}>
-            <div style={{ flex: 1 }}>
-              <div className="small">Header required:</div>
-              <div className="pill" style={{ marginTop: 6 }}>x-workspace-token</div>
-            </div>
-          </div>
           <p className="small" style={{ marginTop: 12 }}>
-            Set <code>WORKSPACE_TOKEN=ws_demo</code> for local demo or use a real workspace id as token.
+            After we wire auth, every Prisma query becomes:
+            <br />
+            <code>where: {"{ workspaceId }"}</code>
           </p>
         </div>
       </div>
