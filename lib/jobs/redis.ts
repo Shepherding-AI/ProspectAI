@@ -1,7 +1,6 @@
-import IORedis from "ioredis";
+import type { ConnectionOptions } from "bullmq";
 import { env } from "@/lib/env";
 
-export const connection = new IORedis(env.REDIS_URL, {
-  maxRetriesPerRequest: null,
-  enableReadyCheck: true,
-});
+export const connection: ConnectionOptions = {
+  url: env.REDIS_URL,
+};
