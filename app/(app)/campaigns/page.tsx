@@ -1,3 +1,4 @@
+export const dynamic = "force-dynamic";
 import { Nav } from "../_components/Nav";
 import { prisma } from "@/lib/db";
 
