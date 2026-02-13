@@ -1,0 +1,241 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum CampaignStatus {
+  ACTIVE
+  PAUSED
+}
+
+enum SignalType {
+  NEW_BUSINESS_REGISTRATION
+  JOB_POSTING
+  BUILDING_PERMIT
+  NEWS_MENTION
+}
+
+enum AccountStage {
+  NEW
+  ENRICHED
+  SCORED
+  CONTACTED
+  MEETING_SET
+  CLOSED_WON
+  CLOSED_LOST
+}
+
+model Workspace {
+  id            String   @id @default(cuid())
+  name          String
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  users         User[]
+  tenantProfile TenantProfile?
+  campaigns     Campaign[]
+  accounts      Account[]
+  signals       SignalEvent[]
+  notifications Notification[]
+}
+
+model User {
+  id          String   @id @default(cuid())
+  workspaceId String
+  email       String   @unique
+  name        String?
+  createdAt   DateTime @default(now())
+
+  workspace   Workspace @relation(fields: [workspaceId], references: [id])
+  campaigns   Campaign[] @relation("CampaignOwner")
+  accounts    AccountOwner[]
+}
+
+model AccountOwner {
+  id         String @id @default(cuid())
+  userId     String
+  accountId  String
+  role       String @default("owner")
+
+  user       User   @relation(fields: [userId], references: [id])
+  account    Account @relation(fields: [accountId], references: [id])
+
+  @@unique([userId, accountId])
+}
+
+model TenantProfile {
+  id             String   @id @default(cuid())
+  workspaceId    String   @unique
+  offerings      String
+  idealCustomers String
+  exclusions     String?
+  differentiators String?
+  complianceNotes String?
+  defaultZips    String? // comma-separated for V1
+
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  workspace      Workspace @relation(fields: [workspaceId], references: [id])
+}
+
+model Campaign {
+  id           String   @id @default(cuid())
+  workspaceId  String
+  ownerId      String
+
+  name         String
+  status       CampaignStatus @default(ACTIVE)
+
+  cron         String
+  timezone     String   @default("America/Chicago")
+
+  zipList      String   // "64118,64119,66213"
+  signalType   SignalType @default(NEW_BUSINESS_REGISTRATION)
+
+  promptConfig Json
+
+  lastRunAt    DateTime?
+  nextRunAt    DateTime?
+
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  workspace    Workspace @relation(fields: [workspaceId], references: [id])
+  owner        User      @relation("CampaignOwner", fields: [ownerId], references: [id])
+
+  reminderRules ReminderRule[]
+}
+
+model Account {
+  id           String   @id @default(cuid())
+  workspaceId  String
+
+  name         String
+  website      String?
+  phone        String?
+  address1     String?
+  city         String?
+  state        String?
+  zip          String?
+
+  canonicalKey String
+
+  stage        AccountStage @default(NEW)
+
+  fitScore     Int?
+  aiBrief      Json?
+  aiWhyNow     String?
+  aiNextSteps  Json?
+
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  workspace    Workspace @relation(fields: [workspaceId], references: [id])
+  signals      SignalEvent[]
+  enrichments  EnrichmentSnapshot[]
+  owners       AccountOwner[]
+
+  @@unique([workspaceId, canonicalKey])
+}
+
+model SignalEvent {
+  id           String   @id @default(cuid())
+  workspaceId  String
+  campaignId   String?
+  accountId    String?
+
+  type         SignalType
+  occurredAt   DateTime?
+  source       String
+  sourceId     String?
+  raw          Json
+
+  createdAt    DateTime @default(now())
+
+  workspace    Workspace @relation(fields: [workspaceId], references: [id])
+  account      Account?  @relation(fields: [accountId], references: [id])
+}
+
+model EnrichmentSnapshot {
+  id          String   @id @default(cuid())
+  accountId   String
+  source      String
+  data        Json
+  confidence  Int?
+  createdAt   DateTime @default(now())
+
+  account     Account @relation(fields: [accountId], references: [id])
+}
+
+model ReminderRule {
+  id          String   @id @default(cuid())
+  campaignId  String
+  rule        Json
+  channel     String
+  createdAt   DateTime @default(now())
+
+  campaign    Campaign @relation(fields: [campaignId], references: [id])
+}
+
+model Notification {
+  id           String   @id @default(cuid())
+  workspaceId  String
+  userEmail    String
+  channel      String
+  payload      Json
+  createdAt    DateTime @default(now())
+
+  workspace    Workspace @relation(fields: [workspaceId], references: [id])
+}
+
+/// NextAuth models (database sessions)
+model AccountAuth {
+  id                 String  @id @default(cuid())
+  userId             String
+  type               String
+  provider           String
+  providerAccountId  String
+  refresh_token      String?
+  access_token       String?
+  expires_at         Int?
+  token_type         String?
+  scope              String?
+  id_token           String?
+  session_state      String?
+
+  user UserAuth @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+}
+
+model SessionAuth {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         UserAuth @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model UserAuth {
+  id            String   @id @default(cuid())
+  name          String?
+  email         String?  @unique
+  emailVerified DateTime?
+  image         String?
+
+  accounts      AccountAuth[]
+  sessions      SessionAuth[]
+}
+
+model VerificationTokenAuth {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+}
