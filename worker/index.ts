@@ -9,19 +9,19 @@ import { notifyNewLead } from "./processors/notify";
 
 logger.info("Worker starting...");
 
-new Worker("campaign:run", async (job) => {
+new Worker("campaign-run", async (job) => {
   await runCampaign(job.data.campaignId);
 }, { connection });
 
-new Worker("account:enrich", async (job) => {
+new Worker("account-enrich", async (job) => {
   await enrichAccount(job.data.accountId);
 }, { connection });
 
-new Worker("account:score", async (job) => {
+new Worker("account-score", async (job) => {
   await scoreAccount(job.data.accountId, job.data.campaignId);
 }, { connection });
 
-new Worker("notify:send", async (job) => {
+new Worker("notify-send", async (job) => {
   const { workspaceId, userEmail, accountId, campaignId } = job.data;
   await notifyNewLead(workspaceId, userEmail, accountId, campaignId);
 }, { connection });
